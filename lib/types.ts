@@ -94,6 +94,8 @@ export interface TrackerData {
   ownerNames?: string[];
   /** имя папки в рабочем каталоге -> название проекта в трекере */
   projectAliases?: Record<string, string>;
+  /** где лежат заметки со встреч. Путь от папки проекта, по умолчанию ../Work */
+  workDir?: string;
   /** Версия файла. Растёт при каждой записи, защищает от затирания чужих правок. */
   rev?: number;
 }

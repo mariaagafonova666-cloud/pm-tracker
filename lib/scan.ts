@@ -2,8 +2,13 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { Candidate, Due, TaskType } from "./types";
 
-/** Папка с рабочими проектами. Читаем только на чтение, ничего не меняем. */
-export const WORK_DIR = path.resolve(process.cwd(), "..", "Work");
+/**
+ * Папка с заметками о встречах. Только чтение, ничего не меняем.
+ * Путь задаётся в данных (`workDir`), по умолчанию папка Work рядом с проектом.
+ */
+export const defaultWorkDir = () => path.resolve(process.cwd(), "..", "Work");
+export const resolveWorkDir = (dir?: string) =>
+  dir ? path.resolve(process.cwd(), dir) : defaultWorkDir();
 
 /** Секции, в которых лежат настоящие задачи. */
 const SECTION =
@@ -77,8 +82,8 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
   return out;
 }
 
-function projectOf(file: string, alias: Record<string, string>): string {
-  const rel = path.relative(WORK_DIR, file);
+function projectOf(file: string, alias: Record<string, string>, root: string): string {
+  const rel = path.relative(root, file);
   const parts = rel.split(path.sep);
   if (parts.length === 1) return "Без проекта";
   // самая глубокая папка обычно и есть проект
@@ -105,9 +110,13 @@ function dueFrom(text: string): Due {
 }
 
 /** Проекты, которые встречаются в рабочих папках. Для выбора при разборе. */
-export async function listProjects(alias: Record<string, string> = {}): Promise<string[]> {
-  const files = await walk(WORK_DIR);
-  return [...new Set(files.map((f) => projectOf(f, alias)))].sort((a, b) =>
+export async function listProjects(
+  alias: Record<string, string> = {},
+  workDir?: string
+): Promise<string[]> {
+  const root = resolveWorkDir(workDir);
+  const files = await walk(root);
+  return [...new Set(files.map((f) => projectOf(f, alias, root)))].sort((a, b) =>
     a.localeCompare(b, "ru")
   );
 }
@@ -129,8 +138,9 @@ export async function scanWork(
   since?: string,
   onlyProject?: string,
   knownNames: string[] = [],
-  opts: { selfNames?: string[]; alias?: Record<string, string> } = {}
+  opts: { selfNames?: string[]; alias?: Record<string, string>; workDir?: string } = {}
 ): Promise<ScanResult> {
+  const WORK_DIR = resolveWorkDir(opts.workDir);
   const SELF = new Set((opts.selfNames ?? DEFAULT_SELF).map((n) => n.toLowerCase()));
   const alias = opts.alias ?? {};
   // Имена, которые уже встречались в трекере. Позволяют разобрать строку
@@ -155,7 +165,7 @@ export async function scanWork(
 
     const text = await fs.readFile(file, "utf8");
     const lines = text.split("\n");
-    const project = projectOf(file, alias);
+    const project = projectOf(file, alias, WORK_DIR);
     if (onlyProject && project !== onlyProject) {
       filesRead--;
       filesSkipped++;

@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 /** Список проектов, которые вообще встречаются в рабочих папках. */
 export async function GET() {
   const data = await readData();
-  return NextResponse.json({ projects: await listProjects(data.projectAliases ?? {}) });
+  return NextResponse.json({
+    projects: await listProjects(data.projectAliases ?? {}, data.workDir),
+  });
 }
 
 export async function POST(req: Request) {
@@ -39,7 +41,7 @@ export async function POST(req: Request) {
     project ? undefined : since, // разбор одного проекта смотрит всю его историю
     project,
     knownNames,
-    { selfNames: data.ownerNames, alias: data.projectAliases }
+    { selfNames: data.ownerNames, alias: data.projectAliases, workDir: data.workDir }
   );
 
   const known = new Set(data.inbox.map((c) => c.was));

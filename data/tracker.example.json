@@ -79,5 +79,6 @@
   ],
   "projectAliases": {
     "Биллинг Project": "Биллинг"
-  }
+  },
+  "workDir": "../Work"
 }
