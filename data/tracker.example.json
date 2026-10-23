@@ -1,0 +1,83 @@
+{
+  "projects": [
+    {
+      "id": "p1",
+      "name": "Биллинг",
+      "level": "critical",
+      "steps": [],
+      "lists": [
+        "Запуск"
+      ]
+    },
+    {
+      "id": "p2",
+      "name": "Мобильное приложение",
+      "level": "medium",
+      "steps": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Описать сценарий оплаты",
+      "project": "Биллинг",
+      "due": "сегодня",
+      "type": "task",
+      "today": true,
+      "priority": "high",
+      "isStep": true,
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    },
+    {
+      "id": "t2",
+      "title": "Пётр: проверить интеграцию с провайдером",
+      "project": "Биллинг",
+      "due": "без срока",
+      "type": "task",
+      "assignee": "Пётр",
+      "milestone": "Запуск",
+      "priority": "medium",
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    },
+    {
+      "id": "t3",
+      "title": "Встреча с командой",
+      "due": "сегодня",
+      "type": "meeting",
+      "today": true,
+      "priority": "medium",
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    },
+    {
+      "id": "t4",
+      "title": "Спросить про сроки релиза",
+      "parent": "t3",
+      "due": "без срока",
+      "type": "task",
+      "priority": "low",
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    }
+  ],
+  "pings": [
+    {
+      "id": "g1",
+      "who": "Пётр",
+      "what": "статус интеграции",
+      "kind": "waiting",
+      "project": "Биллинг",
+      "priority": "high",
+      "askedAt": "2026-01-01T09:00:00.000Z",
+      "check": 0
+    }
+  ],
+  "inbox": [],
+  "seenRaw": [],
+  "owner": "Я",
+  "ownerNames": [
+    "аня",
+    "анна"
+  ],
+  "projectAliases": {
+    "Биллинг Project": "Биллинг"
+  }
+}
