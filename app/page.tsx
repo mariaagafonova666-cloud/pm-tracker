@@ -150,6 +150,7 @@ export default function Page() {
   /** id задачи, которой выбираем родителя */
   const [nestFor, setNestFor] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
+  const [newProject, setNewProject] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
 
@@ -561,6 +562,27 @@ export default function Page() {
     setFinishing(false);
     setView(null);
   }
+
+  /** Новый проект встаёт в конец списка со средним приоритетом. */
+  const createProject = () => {
+    const name = newProject.trim();
+    if (!name) return;
+    const exists = data.projects.find((p) => p.name === name);
+    if (exists) {
+      // такой уже есть: если он в архиве, вернём его, иначе просто откроем
+      if (exists.archived) restoreProject(exists.id);
+      setNewProject("");
+      setView(name);
+      return;
+    }
+    patch((d) => {
+      d.projects.push({ id: uid(), name, level: "medium", steps: [] });
+      return d;
+    });
+    setNewProject("");
+    setHistory(false);
+    setView(name);
+  };
 
   function restoreProject(id: string) {
     patch((d) => {
@@ -1200,6 +1222,14 @@ export default function Page() {
             </div>
           </div>
         ))}
+        <input
+          className="newproj"
+          value={newProject}
+          onChange={(e) => setNewProject(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && createProject()}
+          placeholder="+ новый проект"
+        />
+
         {archivedProjects.length > 0 && (
           <div className="archive">
             <button className="deftoggle" onClick={() => setShowArchive((v) => !v)}>

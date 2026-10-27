@@ -300,3 +300,7 @@ select{border:1px solid var(--ln);border-radius:10px;padding:10px;font-size:13px
 .rank.empty::placeholder{color:#dfe4e1}
 .t:hover .rank{border-color:var(--ln);background:#fff}
 .rank:focus{border-color:var(--g2);background:#fff;color:var(--ink)}
+
+.newproj{width:100%;border:1.5px dashed #dfe4e1;border-radius:12px;padding:9px 11px;
+  font-size:13px;outline:none;background:none;color:var(--ink);margin-top:8px}
+.newproj:focus{border-style:solid;border-color:var(--g2);background:#fff}
