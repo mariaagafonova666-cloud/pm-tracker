@@ -925,7 +925,7 @@ export default function Page() {
 
   /* ---------- разметка ---------- */
 
-  const TaskRow = ({ t, child }: { t: Task; child?: boolean }) => (
+  const taskRow = (t: Task, child?: boolean) => (
     <div
       className={`t${t.done ? " is-done" : ""}`}
       draggable={!child}
@@ -1650,11 +1650,11 @@ export default function Page() {
           )}
           {roots.map((t) => (
             <div key={t.id}>
-              <TaskRow t={t} />
+              {taskRow(t)}
               {!view && (kidsOf(t.id).length > 0 || subFor === t.id) && (
                 <div className="kids">
                   {kidsOf(t.id).map((k) => (
-                    <TaskRow key={k.id} t={k} child />
+                    <div key={k.id}>{taskRow(k, true)}</div>
                   ))}
                   {subFor === t.id && (
                     <input
