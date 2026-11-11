@@ -304,3 +304,14 @@ select{border:1px solid var(--ln);border-radius:10px;padding:10px;font-size:13px
 .newproj{width:100%;border:1.5px dashed #dfe4e1;border-radius:12px;padding:9px 11px;
   font-size:13px;outline:none;background:none;color:var(--ink);margin-top:8px}
 .newproj:focus{border-style:solid;border-color:var(--g2);background:#fff}
+
+/* правка текста задачи на месте */
+.ttl{cursor:text;border-radius:6px;margin:-2px -5px;padding:2px 5px}
+.t:hover .ttl{background:rgba(0,0,0,.025)}
+.t.is-done .ttl{cursor:default}
+.t.is-done:hover .ttl{background:none}
+.ttl-edit{flex:1;width:100%;font:500 14px inherit;color:var(--ink);background:#fff;
+  border:1.5px solid var(--g2);border-radius:8px;padding:4px 7px;margin:-4px -7px;outline:none}
+.steprow .editable{cursor:text;border-radius:6px;padding:1px 5px;margin:0 -5px}
+.steprow:hover .editable{background:rgba(0,0,0,.025)}
+.steprow .ttl-edit{font-size:13.5px}

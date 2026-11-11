@@ -151,6 +151,9 @@ export default function Page() {
   const [nestFor, setNestFor] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [newProject, setNewProject] = useState("");
+  /** id задачи, текст которой сейчас правим */
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
 
@@ -429,6 +432,41 @@ export default function Page() {
       return d;
     });
   }
+
+  function startEdit(t: Task) {
+    setEditId(t.id);
+    setEditText(t.title);
+  }
+
+  /** Пустой текст не сохраняем: задача без названия бесполезна. */
+  function saveEdit() {
+    const id = editId;
+    const text = editText.trim();
+    setEditId(null);
+    if (!id || !text) return;
+    patch((d) => {
+      const t = d.tasks.find((x) => x.id === id);
+      if (t && t.title !== text) t.title = text;
+      return d;
+    });
+  }
+
+  /** Поле правки текста. Вызывается как функция, а не как компонент. */
+  const titleInput = () => (
+    <input
+      className="ttl-edit"
+      autoFocus
+      value={editText}
+      onChange={(e) => setEditText(e.target.value)}
+      onBlur={saveEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") saveEdit();
+        if (e.key === "Escape") setEditId(null);
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      draggable={false}
+    />
+  );
 
   function cyclePrio(id: string) {
     patch((d) => {
@@ -903,7 +941,18 @@ export default function Page() {
       />
       <span className={`bx${t.done ? " done" : ""}`} onClick={() => toggle(t.id)} />
       <div className="body">
-        <div className="ttl">{t.title}</div>
+        {editId === t.id ? (
+          titleInput()
+        ) : (
+          <div
+            className="ttl"
+            onClick={() => !t.done && startEdit(t)}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+          >
+            {t.title}
+          </div>
+        )}
         <div className="meta">
           <span className={dueClass(t.due)}>{t.due}</span>
           {t.project && <span className="chip">{t.project}</span>}
@@ -1305,7 +1354,18 @@ export default function Page() {
                     <div className="t is-done" key={t.id}>
                       <span className="bx done" onClick={() => toggle(t.id)} />
                       <div className="body">
-                        <div className="ttl">{t.title}</div>
+                        {editId === t.id ? (
+          titleInput()
+        ) : (
+          <div
+            className="ttl"
+            onClick={() => !t.done && startEdit(t)}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+          >
+            {t.title}
+          </div>
+        )}
                         <div className="meta">
                           {t.project && <span className="chip">{t.project}</span>}
           {t.assignee && <span className="chip who-chip">{t.assignee}</span>}
@@ -1321,7 +1381,18 @@ export default function Page() {
                     <div className="t" key={t.id}>
                       <span className="bx" onClick={() => toggle(t.id)} />
                       <div className="body">
-                        <div className="ttl">{t.title}</div>
+                        {editId === t.id ? (
+          titleInput()
+        ) : (
+          <div
+            className="ttl"
+            onClick={() => !t.done && startEdit(t)}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+          >
+            {t.title}
+          </div>
+        )}
                         <div className="meta">
                           <span className="chip">появилась в этот день</span>
                           {t.project && <span className="chip">{t.project}</span>}
@@ -1474,7 +1545,17 @@ export default function Page() {
                       onClick={() => toggle(t.id)}
                       title="закрыть"
                     />
-                    <span>{t.title}</span>
+                    {editId === t.id ? (
+                      titleInput()
+                    ) : (
+                      <span
+                        className="editable"
+                        onClick={() => !t.done && startEdit(t)}
+                        title={t.done ? undefined : "нажми, чтобы поправить текст"}
+                      >
+                        {t.title}
+                      </span>
+                    )}
                     {t.assignee ? (
                       <span className="chip who-chip">{t.assignee}</span>
                     ) : (
@@ -1609,7 +1690,18 @@ export default function Page() {
                       onClick={() => cyclePrio(t.id)}
                     />
                     <div className="body">
-                      <div className="ttl">{t.title}</div>
+                      {editId === t.id ? (
+          titleInput()
+        ) : (
+          <div
+            className="ttl"
+            onClick={() => !t.done && startEdit(t)}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+          >
+            {t.title}
+          </div>
+        )}
                       <div className="meta">
                         <span className="chip planned">
                           вернётся {plannedLabel(t.plannedFor!)}
