@@ -315,3 +315,40 @@ select{border:1px solid var(--ln);border-radius:10px;padding:10px;font-size:13px
 .steprow .editable{cursor:text;border-radius:6px;padding:1px 5px;margin:0 -5px}
 .steprow:hover .editable{background:rgba(0,0,0,.025)}
 .steprow .ttl-edit{font-size:13.5px}
+
+/* ---------- карточка задачи ---------- */
+.card .md-h{align-items:flex-start}
+.card .md-h .bx{margin-top:7px}
+.card-ttl{font-size:17px;font-weight:600}
+.card .meta{margin-top:4px}
+.card-b{padding:6px 24px 22px}
+.card-l{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin:18px 0 8px}
+.card-desc,.card-in{width:100%;border:1px solid var(--ln);border-radius:12px;padding:10px 12px;
+  font:14px/1.55 inherit;color:var(--ink);outline:none;resize:vertical;background:#fff}
+.card-desc:focus,.card-in:focus{border-color:#cfe6d3;box-shadow:0 0 0 1.5px var(--g2)}
+.card-in{padding:8px 12px;font-size:13px}
+.card-link{display:flex;align-items:center;gap:10px;padding:5px 0;min-width:0}
+.card-link a{color:var(--g);font-weight:500;text-decoration:none;flex:none}
+.card-link a:hover{text-decoration:underline}
+.card-url{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.x.sm{font-size:17px;padding:0 6px}
+.card-imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+.card-img{position:relative;border:1px solid var(--ln);border-radius:12px;overflow:hidden;background:var(--pill);aspect-ratio:4/3}
+.card-img img{width:100%;height:100%;object-fit:cover;display:block}
+.card-img .x{position:absolute;top:4px;right:4px;background:rgba(255,255,255,.9);opacity:0}
+.card-img:hover .x{opacity:1}
+.card-drop{display:block;border:1.5px dashed #d3dad6;border-radius:12px;padding:16px;text-align:center;
+  color:var(--mut);font-size:13px;cursor:pointer;margin-top:6px}
+.card-drop:hover{border-color:var(--g2);color:var(--g);background:#f3faf4}
+.card-err{color:var(--red);font-size:12.5px;margin-top:8px}
+.chip.cardinfo{background:#eef6ef;color:var(--g)}
+.ttl,.editable{cursor:pointer}
+.t.fileover,.steprow.fileover{background:#f3faf4;box-shadow:inset 0 0 0 1.5px var(--g2)}
+.md.ask{max-width:440px}
+.ask h3{font-size:16px;font-weight:600;margin:8px 0 6px}
+.ask-task{font-weight:500;color:var(--g);margin-bottom:10px}
+.ask-files{list-style:none;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.ask-files .card-url{margin-left:6px}
+.upl-note{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:9px 16px;border-radius:999px;font-size:13px;z-index:60}
+.upl-note.err{background:var(--red);cursor:pointer}

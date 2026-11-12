@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Candidate, Due, Ping, Prio, Project, Task, TrackerData } from "@/lib/types";
+import type {
+  Attachment,
+  Candidate,
+  Due,
+  Ping,
+  Prio,
+  Project,
+  Task,
+  TaskLink,
+  TrackerData,
+} from "@/lib/types";
 
 const DUES: Due[] = ["просрочено", "сегодня", "завтра", "на неделе", "без срока"];
 const TYPES = [
@@ -113,6 +123,25 @@ function agoLabel(n: number) {
   return `${n} дн. молчит`;
 }
 
+/** Подпись ссылки, если её не задали руками: по адресу понятно, что за ней. */
+function linkLabel(l: TaskLink) {
+  if (l.label) return l.label;
+  try {
+    const host = new URL(l.url).hostname.replace(/^www\./, "");
+    if (host.includes("figma.com")) return l.url.includes("/proto/") ? "Прототип Figma" : "Макет Figma";
+    if (host.includes("bitrix")) return "Задача в Битриксе";
+    if (host.includes("slack.com")) return "Тред в Slack";
+    return host;
+  } catch {
+    return l.url;
+  }
+}
+
+function sizeLabel(n: number) {
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} КБ`;
+  return `${(n / 1024 / 1024).toFixed(1)} МБ`;
+}
+
 function checkLabel(n: number) {
   if (n === 0) return "проверить сегодня";
   if (n === 1) return "проверить завтра";
@@ -154,6 +183,16 @@ export default function Page() {
   /** id задачи, текст которой сейчас правим */
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  /** открытая карточка задачи: описание, ссылки, файлы */
+  const [cardId, setCardId] = useState<string | null>(null);
+  const [cardTitle, setCardTitle] = useState("");
+  const [linkText, setLinkText] = useState("");
+  const [uploading, setUploading] = useState(0);
+  const [cardErr, setCardErr] = useState<string | null>(null);
+  /** файлы, брошенные на строку задачи, ждут подтверждения */
+  const [dropAsk, setDropAsk] = useState<{ taskId: string; files: File[] } | null>(null);
+  /** строка, над которой сейчас несут файл */
+  const [fileOver, setFileOver] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
 
@@ -263,6 +302,27 @@ export default function Page() {
 
   const patch = useCallback((fn: (d: TrackerData) => TrackerData) => {
     setData((prev) => (prev ? fn(structuredClone(prev)) : prev));
+  }, []);
+
+  // Escape закрывает карточку из любого поля внутри неё
+  useEffect(() => {
+    if (!cardId) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setCardId(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cardId]);
+
+  // Файл, брошенный мимо задачи, браузер открыл бы вместо трекера
+  useEffect(() => {
+    const stop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", stop);
+    window.addEventListener("drop", stop);
+    return () => {
+      window.removeEventListener("dragover", stop);
+      window.removeEventListener("drop", stop);
+    };
   }, []);
 
   if (!data) return <div className="loading">Загружаю трекер…</div>;
@@ -431,11 +491,6 @@ export default function Page() {
       else t.rank = Number(n);
       return d;
     });
-  }
-
-  function startEdit(t: Task) {
-    setEditId(t.id);
-    setEditText(t.title);
   }
 
   /** Пустой текст не сохраняем: задача без названия бесполезна. */
@@ -717,6 +772,100 @@ export default function Page() {
     if (sortMode !== "manual") setSortMode("manual");
   }
 
+  /* ---------- карточка задачи ---------- */
+
+  function openCard(t: Task) {
+    setCardId(t.id);
+    setCardTitle(t.title);
+    setLinkText("");
+    setCardErr(null);
+  }
+
+  function taskPatch(id: string, fn: (t: Task) => void) {
+    patch((d) => {
+      const t = d.tasks.find((x) => x.id === id);
+      if (t) fn(t);
+      return d;
+    });
+  }
+
+  /** Как и в строке, пустое название не сохраняем. */
+  function saveCardTitle(id: string) {
+    const text = cardTitle.trim();
+    if (text) taskPatch(id, (t) => (t.title = text));
+  }
+
+  /** Строка может быть просто адресом или «подпись адрес». */
+  function addLink(id: string) {
+    const raw = linkText.trim();
+    if (!raw) return;
+    const m = raw.match(/^(.*?)\s*((?:https?:\/\/|www\.)\S+)$/i);
+    const url = (m ? m[2] : raw).replace(/^www\./i, "https://www.");
+    const label = m?.[1].trim() || undefined;
+    const full = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    taskPatch(id, (t) => (t.links = [...(t.links ?? []), { id: uid(), url: full, label }]));
+    setLinkText("");
+  }
+
+  function removeLink(id: string, linkId: string) {
+    taskPatch(id, (t) => (t.links = (t.links ?? []).filter((l) => l.id !== linkId)));
+  }
+
+  async function uploadFiles(id: string, files: File[]) {
+    setCardErr(null);
+    for (const f of files) {
+      setUploading((n) => n + 1);
+      try {
+        const body = new FormData();
+        body.append("file", f);
+        const r = await fetch("/api/files", { method: "POST", body });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? `сервер ответил ${r.status}`);
+        const att = j as Attachment;
+        taskPatch(id, (t) => (t.files = [...(t.files ?? []), att]));
+      } catch (e) {
+        setCardErr(`${f.name}: не загрузился (${e instanceof Error ? e.message : "ошибка"})`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  }
+
+  /**
+   * Обработчики для строки задачи: файлы с компьютера можно бросить прямо
+   * на неё. Перетаскивание самих задач идёт без файлов и сюда не попадает.
+   */
+  const fileDropProps = (t: Task) => ({
+    onDragEnter: (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes("Files")) setFileOver(t.id);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setFileOver(null);
+    },
+  });
+
+  /** true, если это были файлы и ими уже занялись */
+  function fileDrop(e: React.DragEvent, t: Task) {
+    const files = Array.from(e.dataTransfer.files);
+    setFileOver(null);
+    if (!files.length) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    setDropAsk({ taskId: t.id, files });
+    return true;
+  }
+
+  function confirmDrop() {
+    if (!dropAsk) return;
+    uploadFiles(dropAsk.taskId, dropAsk.files);
+    setDropAsk(null);
+  }
+
+  function removeFile(id: string, att: Attachment) {
+    taskPatch(id, (t) => (t.files = (t.files ?? []).filter((a) => a.id !== att.id)));
+    fetch(`/api/files/${encodeURIComponent(att.id)}`, { method: "DELETE" }).catch(() => {});
+  }
+
   function removeTask(id: string) {
     patch((d) => {
       d.tasks = d.tasks.filter((t) => t.id !== id && t.parent !== id);
@@ -925,13 +1074,164 @@ export default function Page() {
 
   /* ---------- разметка ---------- */
 
+  /** Что лежит в карточке. Видно в строке, чтобы не открывать каждую наугад. */
+  const cardChips = (t: Task) => {
+    const nf = t.files?.length ?? 0;
+    const nl = t.links?.length ?? 0;
+    return (
+      <>
+        {t.description?.trim() && <span className="chip cardinfo">описание</span>}
+        {nl > 0 && (
+          <span className="chip cardinfo">
+            {nl} {plural(nl, "ссылка", "ссылки", "ссылок")}
+          </span>
+        )}
+        {nf > 0 && (
+          <span className="chip cardinfo">
+            {nf} {plural(nf, "файл", "файла", "файлов")}
+          </span>
+        )}
+      </>
+    );
+  };
+
+  /** Карточка задачи. Вызывается как функция, а не как компонент: внутри поля ввода. */
+  const taskCard = () => {
+    const t = data.tasks.find((x) => x.id === cardId);
+    if (!t) return null;
+    const images = (t.files ?? []).filter((a) => a.type.startsWith("image/"));
+    const others = (t.files ?? []).filter((a) => !a.type.startsWith("image/"));
+    const fileUrl = (a: Attachment) => `/api/files/${encodeURIComponent(a.id)}`;
+    return (
+      <div className="ov" onClick={(e) => e.target === e.currentTarget && setCardId(null)}>
+        <div
+          className="md card"
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData.files);
+            if (files.length) {
+              e.preventDefault();
+              uploadFiles(t.id, files);
+            }
+          }}
+        >
+          <div className="md-h">
+            <span className={`bx${t.done ? " done" : ""}`} onClick={() => toggle(t.id)} />
+            <div style={{ flex: 1 }}>
+              <input
+                className="ttl-e card-ttl"
+                value={cardTitle}
+                onChange={(e) => setCardTitle(e.target.value)}
+                onBlur={() => saveCardTitle(t.id)}
+                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              />
+              <div className="meta">
+                <span className={dueClass(t.due)}>{t.due}</span>
+                {t.project && <span className="chip">{t.project}</span>}
+                {t.milestone && <span className="chip mile">{t.milestone}</span>}
+                {t.assignee && <span className="chip who-chip">{t.assignee}</span>}
+              </div>
+            </div>
+            <button className="x" onClick={() => setCardId(null)} title="закрыть, Escape">
+              ×
+            </button>
+          </div>
+          <div className="md-b card-b">
+            <div className="card-l">Описание</div>
+            <textarea
+              className="card-desc"
+              value={t.description ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                taskPatch(t.id, (x) => (x.description = v));
+              }}
+              placeholder="Что поменять и зачем. Можно вставить сообщение из Slack целиком"
+              rows={6}
+            />
+
+            <div className="card-l">Ссылки</div>
+            {(t.links ?? []).map((l) => (
+              <div className="card-link" key={l.id}>
+                <a href={l.url} target="_blank" rel="noreferrer">
+                  {linkLabel(l)}
+                </a>
+                <span className="card-url">{l.url}</span>
+                <button className="x sm" onClick={() => removeLink(t.id, l.id)} title="убрать ссылку">
+                  ×
+                </button>
+              </div>
+            ))}
+            <input
+              className="card-in"
+              value={linkText}
+              onChange={(e) => setLinkText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addLink(t.id)}
+              onBlur={() => addLink(t.id)}
+              placeholder="Ссылка на макет, прототип или задачу в Битриксе, Enter"
+            />
+
+            <div className="card-l">Картинки и файлы</div>
+            {images.length > 0 && (
+              <div className="card-imgs">
+                {images.map((a) => (
+                  <div className="card-img" key={a.id}>
+                    <a href={fileUrl(a)} target="_blank" rel="noreferrer" title={a.name}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={fileUrl(a)} alt={a.name} />
+                    </a>
+                    <button className="x sm" onClick={() => removeFile(t.id, a)} title="убрать файл">
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {others.map((a) => (
+              <div className="card-link" key={a.id}>
+                <a href={fileUrl(a)} target="_blank" rel="noreferrer">
+                  {a.name}
+                </a>
+                <span className="card-url">{sizeLabel(a.size)}</span>
+                <button className="x sm" onClick={() => removeFile(t.id, a)} title="убрать файл">
+                  ×
+                </button>
+              </div>
+            ))}
+            <label
+              className="card-drop"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                uploadFiles(t.id, Array.from(e.dataTransfer.files));
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  uploadFiles(t.id, Array.from(e.target.files ?? []));
+                  e.target.value = "";
+                }}
+              />
+              {uploading > 0
+                ? "Загружаю…"
+                : "Перетащи файлы сюда, вставь скриншот из буфера или нажми, чтобы выбрать"}
+            </label>
+            {cardErr && <div className="card-err">{cardErr}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const taskRow = (t: Task, child?: boolean) => (
     <div
-      className={`t${t.done ? " is-done" : ""}`}
+      className={`t${t.done ? " is-done" : ""}${fileOver === t.id ? " fileover" : ""}`}
       draggable={!child}
       onDragStart={() => (dragTask.current = t.id)}
       onDragOver={(e) => e.preventDefault()}
-      onDrop={() => dropTask(t.id)}
+      {...fileDropProps(t)}
+      onDrop={(e) => fileDrop(e, t) || dropTask(t.id)}
     >
       {!child && <span className="grip">⠇</span>}
       <span
@@ -946,9 +1246,9 @@ export default function Page() {
         ) : (
           <div
             className="ttl"
-            onClick={() => !t.done && startEdit(t)}
+            onClick={() => openCard(t)}
             onMouseDown={(e) => e.stopPropagation()}
-            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+            title="открыть карточку задачи"
           >
             {t.title}
           </div>
@@ -969,6 +1269,7 @@ export default function Page() {
             </span>
           )}
           {t.fromPing && <span className="chip src">после ответа: {t.fromPing}</span>}
+          {cardChips(t)}
           {t.done &&
             (() => {
               const left = data.tasks.filter((x) => x.parent === t.id && !x.done).length;
@@ -1359,9 +1660,9 @@ export default function Page() {
         ) : (
           <div
             className="ttl"
-            onClick={() => !t.done && startEdit(t)}
+            onClick={() => openCard(t)}
             onMouseDown={(e) => e.stopPropagation()}
-            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+            title="открыть карточку задачи"
           >
             {t.title}
           </div>
@@ -1386,9 +1687,9 @@ export default function Page() {
         ) : (
           <div
             className="ttl"
-            onClick={() => !t.done && startEdit(t)}
+            onClick={() => openCard(t)}
             onMouseDown={(e) => e.stopPropagation()}
-            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+            title="открыть карточку задачи"
           >
             {t.title}
           </div>
@@ -1539,7 +1840,13 @@ export default function Page() {
                   </div>
                 )}
                 {items.map((t) => (
-                  <div className={`steprow${t.done ? " isdone" : ""}`} key={t.id}>
+                  <div
+                    className={`steprow${t.done ? " isdone" : ""}${fileOver === t.id ? " fileover" : ""}`}
+                    key={t.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    {...fileDropProps(t)}
+                    onDrop={(e) => fileDrop(e, t)}
+                  >
                     <span
                       className={`bx${t.done ? " done" : ""}`}
                       onClick={() => toggle(t.id)}
@@ -1550,12 +1857,13 @@ export default function Page() {
                     ) : (
                       <span
                         className="editable"
-                        onClick={() => !t.done && startEdit(t)}
-                        title={t.done ? undefined : "нажми, чтобы поправить текст"}
+                        onClick={() => openCard(t)}
+                        title="открыть карточку задачи"
                       >
                         {t.title}
                       </span>
                     )}
+                    {cardChips(t)}
                     {t.assignee ? (
                       <span className="chip who-chip">{t.assignee}</span>
                     ) : (
@@ -1695,9 +2003,9 @@ export default function Page() {
         ) : (
           <div
             className="ttl"
-            onClick={() => !t.done && startEdit(t)}
+            onClick={() => openCard(t)}
             onMouseDown={(e) => e.stopPropagation()}
-            title={t.done ? undefined : "нажми, чтобы поправить текст"}
+            title="открыть карточку задачи"
           >
             {t.title}
           </div>
@@ -1961,6 +2269,50 @@ export default function Page() {
           </div>
         </div>
       </div>
+
+      {cardId && taskCard()}
+
+      {uploading > 0 && !cardId && <div className="upl-note">Загружаю файлы…</div>}
+      {cardErr && !cardId && (
+        <div className="upl-note err" onClick={() => setCardErr(null)}>
+          {cardErr}
+        </div>
+      )}
+
+      {dropAsk &&
+        (() => {
+          const t = data.tasks.find((x) => x.id === dropAsk.taskId);
+          const n = dropAsk.files.length;
+          return (
+            <div className="ov" onClick={(e) => e.target === e.currentTarget && setDropAsk(null)}>
+              <div className="md ask">
+                <div className="md-b">
+                  <h3>
+                    Добавить {n === 1 ? "файл" : `${n} ${plural(n, "файл", "файла", "файлов")}`} в задачу?
+                  </h3>
+                  <div className="ask-task">{t?.title}</div>
+                  <ul className="ask-files">
+                    {dropAsk.files.map((f, i) => (
+                      <li key={i}>
+                        {f.name} <span className="card-url">{sizeLabel(f.size)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="md-f">
+                  <span className="acts">
+                    <button className="skip" onClick={() => setDropAsk(null)}>
+                      Отмена
+                    </button>
+                    <button className="take" autoFocus onClick={confirmDrop}>
+                      Добавить
+                    </button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {inboxOpen && (
         <div className="ov" onClick={(e) => e.target === e.currentTarget && setInboxOpen(false)}>

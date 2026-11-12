@@ -51,7 +51,29 @@ export interface Task {
   /** имя человека, после ответа которого появилась эта задача */
   fromPing?: string;
   source?: Source | null;
+  /** полное описание: что поменять и зачем. Видно в карточке задачи */
+  description?: string;
+  /** ссылки на макеты, прототипы, задачу в Битриксе */
+  links?: TaskLink[];
+  /** картинки и файлы, приложенные к задаче. Сами файлы лежат в data/files */
+  files?: Attachment[];
   createdAt: string;
+}
+
+export interface TaskLink {
+  id: string;
+  url: string;
+  /** подпись. Если пусто, берётся по адресу: Figma, Битрикс или домен */
+  label?: string;
+}
+
+export interface Attachment {
+  /** имя файла в data/files, оно же адрес /api/files/<id> */
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  addedAt: string;
 }
 
 export interface Ping {
